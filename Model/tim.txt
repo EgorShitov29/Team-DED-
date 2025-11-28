@@ -1,8 +1,0 @@
-!pip install roboflow
-
-from roboflow import Roboflow
-rf = Roboflow(api_key="f8ogYRt5iKRTTKiFwkv8")
-project = rf.workspace("forest-kutiw").project("dungeon-vqwho")
-version = project.version(1)
-dataset = version.download("yolov8")
-                
