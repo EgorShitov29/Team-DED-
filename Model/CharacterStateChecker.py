@@ -1,24 +1,20 @@
 import cv2 as cv
 import numpy as np
-import easyocr
 
-import os
-
-from utils.frame_editors import frame_cropper
-
+from threading import Lock
 
 class CharacterStateChecker:
     
-    def __init__(self, frame: cv.typing.MatLike, reader: easyocr.Reader):
-        self.frame = frame
+    def __init__(self, need_to_heal:bool=None, can_e_attack:bool=None) -> None:
+        self.need_to_heal = need_to_heal
+        self.can_e_attack = can_e_attack
 
-    def character_life_check(self) -> tuple[int, int]:
-        cropped_img = None
-        remain, full = int(reader.readtext(cv.cvtColor(cropped_img, cv.COLOR_BGR2GRAY))[0][1].split('/')[0]), int(reader.readtext(cv.cvtColor(cropped_img, cv.COLOR_BGR2GRAY))[0][1].split('/')[-1])
-        return (full, remain)
+    def update_need_to_heal_flag(self, need_to_heal: bool) -> None:
+        self.need_to_heal = need_to_heal
 
-    def e_attack_state_check(self):
-        pass
+    def update_can_e_attack_flag(self, can_e_attack: bool) -> None:
+        self.can_e_attack = can_e_attack
 
-    def ultimate_attack_state_check(self):
-        pass
+    @property
+    def serialized(self):
+        return {k: v for k, v in self.__dict__.items() if not k.startswith('_')}

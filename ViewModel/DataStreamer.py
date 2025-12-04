@@ -1,11 +1,10 @@
 import cv2 as cv
-import pyautogui as pgui
 import numpy as np
 
 
 class DataStreamer:
 
-    def __init__(self, dungeon_level: int, frame: cv.typing.MatLike) -> None:
+    def __init__(self, frame: cv.typing.MatLike=None, dungeon_level: int=None) -> None:
         self.dungeon_level = dungeon_level
         self._frame = frame
     
