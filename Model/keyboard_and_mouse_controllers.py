@@ -2,7 +2,6 @@ import pyautogui as pgui
 
 import time
 
-
 class MouseMover:
     
     def move_cursor_to_coords(self, coords: tuple[int, int], duration: float=0.1) -> None:
@@ -23,3 +22,15 @@ class KeyboardController:
     
     def press_key(self, keys: list[str]) -> None:
         pgui.press(keys=keys)
+
+    def hold_hotkey(self, keys_string: str, duration:float = 0.1) -> None:
+        self.down_key(keys_string[0])
+        self.down_key(keys_string[-1])
+        time.sleep(duration)
+        self.up_key(keys_string[0])
+        self.up_key(keys_string[-1])
+    
+    def hold_key(self, keys_string: str, duration: float = 0.1) -> None:
+        self.down_key(keys_string)
+        time.sleep(duration)
+        self.up_key(keys_string)
