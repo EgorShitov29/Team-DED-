@@ -5,10 +5,11 @@ import time
 import numpy as np
 from typing import Optional
 
-from .detection.Detector import Detector
-from .EnemyAimer import EnemyAimer
-import .gameplay_core as core
-from .ScreenCapture import ScreenCapture
+from detection.Detector import Detector
+from EnemyAimer import EnemyAimer
+import gameplay_core as core
+from ScreenCapture import ScreenCapture
+from CharacterStateChecker import need_to_heal, can_e_attack
 
 
 class BattleStrategy:
@@ -22,6 +23,8 @@ class BattleStrategy:
         self.pool_executor = ThreadPoolExecutor(max_workers=2)
         self.stat = {
             'detected_enemies': 0,
+            'need_to_heal': False,
+            'can_e_attack': False,
             'curr_action': None
         }
         self._is_running = False
@@ -29,7 +32,8 @@ class BattleStrategy:
     def start(self):
         self._is_running = True
         self.frame_getter.start()
-        threading.Thread(target=None, daemon=True).start()
+        detection_thread = threading.Thread(target=self._detection_loop, daemon=True)
+        detection_thread.start()
 
     def stop(self):
         self._is_running = False
@@ -37,9 +41,10 @@ class BattleStrategy:
 
     def _detection_loop(self):
         while self._is_running:
-            frame = self.frame_getter.get_frame()
-            if frame is not None:
-                detection_data = self.detector.detect(frame)
+            frame_data = self.frame_getter.get_frame_data()
+            if frame_data and frame_data['frame'] is not None:
+                future = self.pool_executor.submit(self.detector.detect, frame_data['frame'])
+                detection_data = future.result(timeout=0.1)
                 sefl.detection_queue.put(detection_data, timeout=0.01)
 
     def _execute_game_command(self, command: Optional[str]):
@@ -53,15 +58,36 @@ class BattleStrategy:
         elif len(command) == 1:
             core.hold_key(command)
 
-     def process_frame(self) -> bool:
+    def process_frame(self) -> bool:
         try:
+            frame_data = self.frame_getter.get_frame_data()
+            if not frame_data:
+                return False
             detection_data = self.detection_queue.get_nowait()
         except:
-            return False
+            frame_data = self.frame_getter.get_frame_data()
+            if not frame_data:
+                return False
+
+        need_to_heal = need_to_heal(frame_data['health_bar'])
+        can_e_attack = can_e_attack(frame_datap['e_attack'])
 
         command = self.aimer.get_aim_command(detection_data)
 
-        self._execute_game_command(command)
+        self._battle_logic(command, need_to_heal, can_e_attack)
+        self.stats.update({
+            'detected_enemies': len(detection_data),
+            'need_to_heal': need_to_heal,
+            'can_e_attack': can_e_attack,
+            'curr_action': command or 'wait'
+        })
+        return True
 
-        self.stats['detected_enemies'] = len(detection_data)
-        self.stats['curr_action'] = command or 'wait'
+    def _battle_logic(self, command, need_to_heal, can_e_attack):
+        if need_to_heal:
+            print('HEAL')
+        
+        if can_e_attack and len(self.stats['detected_enemies']) > 0:
+            core.elemental_attack()
+
+        self._execute_game_command(command)

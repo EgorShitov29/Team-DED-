@@ -4,18 +4,18 @@ from PIL import Image, ImageTk
 
 
 class BotInterface(tk.Tk):
-    def __init__(self, view_model):
+    def __init__(self, view_model=None):
         super().__init__()
         self.vm = view_model
-        self.vm.add_listener(self._update_ui)
+        #self.vm.add_listener(self._update_ui)
         self._setup_ui()
     
     def _setup_ui(self):
         self.title('autofight')
-        self.geometry('350x250')
+        self.geometry('250x150')
         
-        tk.Button(self, text="START", command=self.vm.start, bg='green').pack(pady=10)
-        tk.Button(self, text="STOP", command=self.vm.stop, bg='red').pack(pady=5)
+        tk.Button(self, text="START", bg='green').pack(pady=10)
+        tk.Button(self, text="STOP", bg='red').pack(pady=5)
         
         self.status_label = tk.Label(self, text="Готов", font=('Arial', 12))
         self.status_label.pack(pady=20)
@@ -34,7 +34,6 @@ def use_attrs():
     root.attributes('-topmost', True)
 
 if __name__ == '__main__':
-    root = Interface()
+    root = BotInterface()
     root.after(100, use_attrs)
-    print(root.button_click)
     root.mainloop()

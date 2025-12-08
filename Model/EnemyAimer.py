@@ -87,3 +87,17 @@ class EnemyAimer:
         """Враг в зоне атаки: расстояние < 150px. Опционально - отследить увеличение ббокса"""
         nearest_bbox, distance = self.get_nearest_enemy(bbox.reshape(1, -1))
         return self.get_movement_command(dx, dy)
+
+    
+    def get_aim_command(self, detection_data: dict) -> Optional[str]:
+        bboxes = self.extract_enemies_from_detection(detection_data)
+        if len(bboxes) == 0:
+            return None
+        
+        nearest_bbox, distance = self.get_nearest_enemy(bboxes)
+        
+        if self.is_attackable(nearest_bbox):
+            return 'attack'
+        
+        dx, dy = self.get_direction(nearest_bbox)
+        return self.get_movement_command(dx, dy)
