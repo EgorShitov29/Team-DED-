@@ -8,7 +8,7 @@ from typing import Optional
 from detection.Detector import Detector
 from EnemyAimer import EnemyAimer
 import gameplay_core as core
-from ScreenCapture import ScreenCapture
+from ScreenCapture import BattleScreenCapture
 from CharacterStateChecker import need_to_heal, can_e_attack
 
 
@@ -17,7 +17,7 @@ class BattleStrategy:
     def __init__(self, detector: Detector, enemy_aimer: EnemyAimer):
         self.detector = detector
         self.enemy_aimer = enemy_aimer
-        self.frame_getter = ScreenCapture()
+        self.frame_getter = BattleScreenCapture()
         self.frame_queue = Queue(maxsize=2)
         self.detection_queue = Queue(maxsize=2)
         self.pool_executor = ThreadPoolExecutor(max_workers=2)

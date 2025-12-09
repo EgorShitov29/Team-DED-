@@ -1,7 +1,15 @@
-from typing import Callable, List
-from dataclasses import dataclass
-import time
-import numpy as np
+from ViewModel.VM import GameViewModel
+from View.Interface import BotInterface
+import logging
+
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(),
+    ]
+)
+logger = logging.getLogger(__name__)
 
 class GameViewModel:
     def __init__(self):
@@ -29,5 +37,9 @@ class GameViewModel:
     def switch_state(self, state_name):
         """View → ViewModel (данные из Combobox)"""
         self.state = state_name
-        print(f"Переход в состояние: {state_name}")
         self.notify_all({'state': state_name, 'is_running': self.is_running})
+        logger.debug(f'состояние сейчас - {self.state}; запущен - {self.is_running}')
+
+vm = GameViewModel()
+root = BotInterface(vm)
+root.mainloop()
