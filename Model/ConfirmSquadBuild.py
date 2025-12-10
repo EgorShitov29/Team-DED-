@@ -7,8 +7,6 @@ class ConfirmSquadLevel:
     """
     Расширяемый класс. Но пока только два метода
     """
-    def __init__(self, text_and_coords: dict):
-        self.text_and_coords = text_and_coords
 
     def _find_squad_level(self, text: str) -> bool:
     """
@@ -18,11 +16,11 @@ class ConfirmSquadLevel:
     match = re.search(pattern, text)
     return match
 
-    def start_with_confirmed_squad(self):
-        for text in self.text_and_coords.keys():
+    def start_with_confirmed_squad(self, text_and_coords: dict):
+        for text in text_and_coords.keys():
             match = self._find_squad_level(text)
             if match:
-                bbox = self.text_and_coords[text]
+                bbox = text_and_coords[text]
                 centerx = (bbox[2] - bbox[0]) // 2
                 centery = (bbox[3] - bbox[1]) // 2
                 pgui.moveTo(x=centerx, y=centery)

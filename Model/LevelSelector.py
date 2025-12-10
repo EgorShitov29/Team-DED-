@@ -1,14 +1,13 @@
 import cv2 as cv
 import pyautogui as pgui
 
-import .state_check.src.search_text_frame as text_opp
+import state_check.src.search_text_frame as text_opp
 import gameplay_core as core
 
 
 class LevelSelector:
     
-    def __init__(self, text_and_coords: dict, target_squad_level: int=81) -> None:
-        self.text_and_coords = text_and_coords
+    def __init__(self, target_squad_level: int=81) -> None:
         self.target_squad_level = target_squad_level
 
     def _find_squad_level(self, text: str) -> None | int:
@@ -25,16 +24,16 @@ class LevelSelector:
     def _find_closest(self, numbers, target):
         return min(numbers, key=lambda x: abs(x - target))
 
-    def _find_levels(self):
+    def _find_levels(self, text_and_coords: dict):
         num_coords = dict()
-        for text in self.text_and_coords.keys():
+        for text in text_and_coords.keys():
             match = self._find_squad_level(text)
             if match:
-                num_coords[match] = self.text_and_coords[text]
+                num_coords[match] = text_and_coords[text]
         return num_coords
 
-    def select_level(self):
-        num_coords = self._find_levels()
+    def select_level(self, text_and_coords: dict):
+        num_coords = self._find_levels(text_and_coords)
         closest = self._find_closest(num_coords.keys(), self.target_squad_level)
         bbox = num_coords[closest]
         centerx = (bbox[2] - bbox[0]) // 2

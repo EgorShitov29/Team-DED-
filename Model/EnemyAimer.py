@@ -7,7 +7,7 @@ class EnemyAimer:
     Возвращает команды либо в виде клавиш, которые нужно нажать для перемещения,
     либо готовность к атаке. Необходимо поиграться с мертвой зоной, порогами
     """
-    def __init__(self, screen_center: tuple[int, int], deadzone: int = 50):
+    def __init__(self, screen_size: tuple[int, int], deadzone: int = 50):
         self.screen_width, self.screen_height = screen_size
         self.hero_center = np.array([
             self.screen_width // 2,

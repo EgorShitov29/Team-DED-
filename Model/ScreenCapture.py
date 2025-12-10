@@ -51,6 +51,7 @@ class ScreenCapture:
         except:
             return None
 
+
 class BattleScreenCapture(ScreenCapture):
     def __init__(self, fps_limit=30):
         super().__init__(fps_limit)

@@ -26,7 +26,8 @@ class BotInterface(tk.Tk):
             "select_level", 
             "squad_build",
             "activate_dungeon",
-            "battle"
+            "battle",
+            "collect_items"
         ]
         self.state_combo = ttk.Combobox(main_frame, textvariable=self.state_var, 
                                     values=states, state="readonly", width=20)
@@ -81,7 +82,7 @@ class BotInterface(tk.Tk):
         
         self.stats_label.config(text=f"Врагов: {enemies}")
         self.status_label.config(
-            text=f"🟢 {state}" if running else "Остановлен",
+            text=f"{state}" if running else "Остановлен",
             fg='green' if running else 'gray'
         )
     
@@ -92,7 +93,8 @@ class BotInterface(tk.Tk):
             "Выбрать уровень": "select_level",
             "Билд отряда": "squad_build",
             "Активация подземелья": "activate_dungeon",
-            "Бой": "battle"
+            "Бой": "battle",
+            "Собрать Артефакты": "collect_items"
         }
         target_state = state_map.get(state_name)
         if target_state and self.vm:
@@ -111,12 +113,3 @@ class BotInterface(tk.Tk):
 
 def use_attrs():
     root.attributes('-alpha', 0.3)
-
-if __name__ == "__main__":
-    class MockVM:
-        def start(self): print("START")
-        def stop(self): print("STOP") 
-        def switch_state(self, state): print(f"STATE: {state}")
-    
-    root = BotInterface(MockVM())
-    root.mainloop()
