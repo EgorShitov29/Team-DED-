@@ -14,6 +14,7 @@ class DataStreamer:
 
     @frame.setter
     def frame(self, new_frame) -> None:
-        if not isinstance(new_frame, cv.typing.MatLike):
-            raise 'У тебя ничего не получилось'
+        if new_frame is None:
+            raise ValueError("frame is None")
         self._frame = new_frame
+
