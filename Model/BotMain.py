@@ -1,45 +1,34 @@
-from DungeonModel import DungeonModel
-from ViewModel.VM import GameViewModel
+import threading
+import time
+
+from Model.Orchestrator import Orchestrator
+
 
 class BotMain:
     """
-    Доделать этот классс. Это основной цикл бота
+    Запуск/остановка оркестратора в отдельном потоке.
     """
-    def __init__(self, model: DungeonModel, view_model: GameViewModel):
-        self.model = model
-        self.vm = view_model
-        self.running = False
-        self.thread = None
-    
-    def start_main_loop(self):
-        self.running = True
-        self.thread = threading.Thread(target=self._main_loop, daemon=True)
-        self.thread.start()
-    
-    def _main_loop(self):
-        while self.running:
-            current_state = self.vm.state
 
-            #Добавить и обработать методы из DungeonModel
-            action_map = {
+    def __init__(self, orchestrator: Orchestrator) -> None:
+        self.orchestrator = orchestrator
+        self._thread = None
+        self._running = False
 
-            }
-            
-            if current_state in action_map:
-                try:
-                    action_map[current_state]()
-                except Exception as e:
+    def _run_loop(self) -> None:
+        self._running = True
+        try:
+            self.orchestrator.run()
+        finally:
+            self._running = False
 
-            stats = self.model.battle_strategy.stat if hasattr(self.model.battle_strategy, 'stat') else {}
-            self.vm.notify_all({
-                'state': current_state,
-                'is_running': self.running,
-                **stats
-            })
-            
-            time.sleep(1.0)
-    
-    def stop(self):
-        self.running = False
-        if self.model.battle_strategy:
-            self.model.battle_strategy.stop()
+    def start(self) -> None:
+        if self._thread is not None and self._thread.is_alive():
+            return
+        self._thread = threading.Thread(target=self._run_loop, daemon=True)
+        self._thread.start()
+
+    def stop(self) -> None:
+        self.orchestrator.stop()
+        # можно дождаться завершения
+        if self._thread is not None:
+            self._thread.join(timeout=5.0)

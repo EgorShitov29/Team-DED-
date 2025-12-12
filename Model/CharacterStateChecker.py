@@ -3,7 +3,7 @@ import numpy as np
 
 from threading import Lock
 
-from ColorSegmentator import ColorSegmentator
+from Model.ColorSegmentator import ColorSegmentator
 
 segmentator = ColorSegmentator()
 

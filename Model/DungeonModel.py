@@ -1,40 +1,47 @@
-from detection.Detector import Detector
-from Aimer import Aimer
-from EnemyAimer import EnemyAimer
-from BattleStrategy import BattleStrategy
-from EntertToDungeon import enter_to_dungeon
-from ScreenCapture import ScreenCapture, BattleScreenCapture
-from ConfirmSquadBuild import ConfirmSquadLevel
-from ColorSegmentator import ColorSegmentator
-from FrameTextCoordinator import FrameTextCoordinator
-from EntertToDungeon import enter_to_dungeon
-from ActivateDungeon import activate_dungeon
-
-import time
-import cv2 as cv
-import numpy as np
-import threading
-from queue import Queue
-from concurrent.futures import ThreadPoolExecutor
-from typing import Optional
-
-
 class DungeonModel:
+    """
+    Хранит высокоуровневое состояние цикла подземелья.
+    """
 
-    def __init__(self):
-        self.detector_enemy = Detector('detection/weights/enemy_best.pt')
-        self.detector_tree = Detector('detection/weights/tree_best.pt')
-        self.enemy_aimer = EnemyAimer(screen_center=(1920, 1080))
-        self.tree_aimer = Aimer(screen_size=(1920, 1080))
-        self.level_salector = LevelSelector()
-        self.text_coordinator = FrameTextCoordinator()
-        self.confirm_squad_level = ConfirmSquadLevel()
-        self.battle = BattleStrategy()
+    def __init__(self) -> None:
+        self._in_dungeon = False
+        self._squad_confirmed = False
+        self._battle_finished = False
+        self._loot_collected = False
+        self._health_ratio = None  # 0..1 или None
 
-    def enter(self, frame, event_type='invite'):
-        return enter_to_dungeon(frame, event_type)
+    def in_dungeon(self) -> bool:
+        return self._in_dungeon
 
-    def activate(self, event_type='activate'):
-        result = activate_dungeon()
-        return result
+    def set_in_dungeon(self, value: bool) -> None:
+        self._in_dungeon = value
 
+    def squad_confirmed(self) -> bool:
+        return self._squad_confirmed
+
+    def set_squad_confirmed(self, value: bool) -> None:
+        self._squad_confirmed = value
+
+    def is_battle_finished(self) -> bool:
+        return self._battle_finished
+
+    def set_battle_finished(self, value: bool) -> None:
+        self._battle_finished = value
+
+    def is_loot_collected(self) -> bool:
+        return self._loot_collected
+
+    def set_loot_collected(self, value: bool) -> None:
+        self._loot_collected = value
+
+    def get_health_ratio(self):
+        return self._health_ratio
+
+    def set_health_ratio(self, value) -> None:
+        self._health_ratio = value
+
+    def reset_for_next_run(self) -> None:
+        self._in_dungeon = False
+        self._squad_confirmed = False
+        self._battle_finished = False
+        self._loot_collected = False

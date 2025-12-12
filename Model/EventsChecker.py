@@ -1,8 +1,7 @@
 import cv2 as cv
 
-import os
-
-import state_check.src as state 
+from Model import state_check
+import Model.state_check.src as state
 
 
 class EventsChecker:

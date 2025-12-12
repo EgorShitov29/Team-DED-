@@ -1,7 +1,7 @@
 import cv2 as cv
 import numpy as np
 
-from hsv_borders import hsv_borders
+from Model.hsv_borders import hsv_borders
 
 class ColorSegmentator:
 
