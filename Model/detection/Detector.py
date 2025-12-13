@@ -34,7 +34,7 @@ class Detector:
         return prediction_data
 
     def detect(self, source_image: cv.typing.MatLike) -> dict:
-        if source_image:
+        if source_image is not None:
             predict = self.__model_predict(source_image)
             prediction_data = self.__get_prediction_data(predict)
         else:
