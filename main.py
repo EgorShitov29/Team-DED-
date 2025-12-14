@@ -1,3 +1,8 @@
+import threading
+import time
+
+import pyautogui as pgui
+
 from Model.ActivateDungeon import ActivateDungeon
 from Model.detection.Detector import Detector
 from Model.Aimer import Aimer
@@ -15,7 +20,7 @@ from Model.Simple_EnterToDungeon import SimpleEnterToDungeon
 from Model.EventsChecker import EventsChecker
 from Model.FrameTextCoordinator import FrameTextCoordinator
 from Model.gameplay_core import gameplay
-from Model.keyboard_and_mouse_controllers import MouseMover,MouseClicker,KeyboardController
+from Model.keyboard_and_mouse_controllers import MouseMover, MouseClicker, KeyboardController
 from Model.LevelSelector import LevelSelector
 from Model.ScreenCapture import ScreenCapture
 from Model.StateMachine import GameplayStateMachine
@@ -23,12 +28,17 @@ from Model.ToCharacterData import ToCharacterData
 from Model import window_manager
 
 from View.Interface import BotInterface
-
 from ViewModel.DataStreamer import DataStreamer
 from ViewModel.VM import GameViewModel
 
-import threading
-import time
+
+class CameraMover:
+    def move_view(self, dx: int, dy: int) -> None:
+        """
+        Двигает мышь относительно текущей позиции для поворота камеры.
+        """
+        x, y = pgui.position()
+        pgui.moveTo(x + dx, y + dy, duration=0.05)
 
 def build_model():
     # --- окно Genshin и захват экрана ---
@@ -61,18 +71,37 @@ def build_model():
     # --- события/кнопки и окна ---
     events_checker = EventsChecker()
     level_selector = LevelSelector()
+
     confirm_squad = ConfirmSquadBuild(
         grab_frame=grab_frame,
         frame_text=frame_text,
         clicker=mouse_clicker,
     )
+
     activate_dungeon = ActivateDungeon(
         grab_frame=grab_frame,
         frame_text=frame_text,
         clicker=mouse_clicker,
     )
 
-    # простой сценарий входа: бежим вперёд и жмём F
+    # простой сценарий входа: спринт вперёд и F
+    class SimpleEnterToDungeon:
+        def __init__(self, keyboard: KeyboardController, run_time: float = 1.0):
+            self.keyboard = keyboard
+            self.run_time = run_time
+            self._done = False
+
+        def enter(self) -> bool:
+            if self._done:
+                return True
+            print("[SimpleEnter] shift sprint")
+            self.keyboard.hold_key("shift", duration=self.run_time)
+            time.sleep(0.3)
+            print("[SimpleEnter] press F")
+            self.keyboard.press_key(["f"])
+            self._done = True
+            return True
+
     simple_enter = SimpleEnterToDungeon(keyboard=keyboard)
 
     # --- модель подземелья ---
@@ -91,20 +120,39 @@ def build_model():
             if coords and len(coords) == 4:
                 x1, y1, x2, y2 = coords
                 bboxes.append((int(x1), int(y1), int(x2), int(y2)))
+        print("[YOLO] bboxes:", len(bboxes))
         return bboxes
 
     # --- скилл-контроллер ---
     class SkillController:
-        def __init__(self, kb: KeyboardController):
+        def __init__(self, kb: KeyboardController, mouse: MouseClicker):
             self.kb = kb
+            self.mouse = mouse
 
         def use_burst(self):
-            self.kb.press_key(['q'])
+            print("[SkillController] use_burst (Q)")
+            self.kb.press_key(["q"])
 
         def use_skills(self):
-            self.kb.press_key(['e'])
+            print("[SkillController] use_skills (E)")
+            self.kb.press_key(["e"])
 
-    skill_controller = SkillController(keyboard)
+        def basic_attack(self, times: int = 1):
+            for _ in range(times):
+                self.mouse.click()
+
+
+    skill_controller = SkillController(keyboard, mouse_clicker)
+
+    # --- camera mover + enemy aimer ---
+    camera_mover = CameraMover()
+    screen_w, screen_h = w, h
+
+    enemy_aimer = EnemyAimer(
+        screen_size=(screen_w, screen_h),
+        mover=camera_mover,
+        attacker=skill_controller,
+    )
 
     # --- боевая стратегия ---
     battle_strategy = BattleStrategy(
@@ -112,9 +160,11 @@ def build_model():
         enemy_detector=enemy_detector,
         skill_controller=skill_controller,
         state_tracker=None,
+        enemy_aimer=enemy_aimer,
+        keyboard=keyboard,
     )
 
-    # --- FSM (пока просто создаём) ---
+    # --- FSM ---
     fsm = GameplayStateMachine()
 
     return {
@@ -132,7 +182,7 @@ def build_model():
 def run_bot_loop(vm: GameViewModel, deps: dict):
     screen: ScreenCapture = deps["screen"]
     battle_strategy: BattleStrategy = deps["battle_strategy"]
-    simple_enter: SimpleEnterToDungeon = deps["simple_enter"]
+    simple_enter = deps["simple_enter"]
     keyboard: KeyboardController = deps["keyboard"]
 
     while True:
@@ -144,6 +194,8 @@ def run_bot_loop(vm: GameViewModel, deps: dict):
 
         if state == "battle":
             enemies = battle_strategy.tick()
+            if enemies:
+                keyboard.hold_key("shift", duration=0.3)
             vm.notify_all(
                 {
                     "state": state,
@@ -152,8 +204,8 @@ def run_bot_loop(vm: GameViewModel, deps: dict):
                 }
             )
 
+
         elif state == "enter_to_dungeon":
-            # твой сценарий: стоим у двери, подбегаем вперёд и жмём F
             simple_enter.enter()
             vm.notify_all(
                 {
@@ -179,8 +231,8 @@ def main():
     window_manager.ensure_game_active()
 
     deps = build_model()
-    vm = GameViewModel()
 
+    vm = GameViewModel()
     ui = BotInterface(view_model=vm)
 
     bot_thread = threading.Thread(target=run_bot_loop, args=(vm, deps), daemon=True)
@@ -191,4 +243,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
