@@ -16,7 +16,7 @@ from Model.ConfirmSquadBuild import ConfirmSquadBuild
 from Model.DataCollector import DataCollector
 from Model.DungeonModel import DungeonModel
 from Model.EnemyAimer import EnemyAimer
-from Model.Simple_EnterToDungeon import SimpleEnterToDungeon
+from Model.SimpleEnterToDungeon import SimpleEnterToDungeon
 from Model.EventsChecker import EventsChecker
 from Model.FrameTextCoordinator import FrameTextCoordinator
 from Model.gameplay_core import gameplay
@@ -26,7 +26,6 @@ from Model.ScreenCapture import ScreenCapture
 from Model.StateMachine import GameplayStateMachine
 from Model.ToCharacterData import ToCharacterData
 from Model import window_manager
-
 from View.Interface import BotInterface
 from ViewModel.DataStreamer import DataStreamer
 from ViewModel.VM import GameViewModel
@@ -39,6 +38,7 @@ class CameraMover:
         """
         x, y = pgui.position()
         pgui.moveTo(x + dx, y + dy, duration=0.05)
+
 
 def build_model():
     # --- окно Genshin и захват экрана ---
@@ -71,7 +71,6 @@ def build_model():
     # --- события/кнопки и окна ---
     events_checker = EventsChecker()
     level_selector = LevelSelector()
-
     confirm_squad = ConfirmSquadBuild(
         grab_frame=grab_frame,
         frame_text=frame_text,
@@ -84,25 +83,15 @@ def build_model():
         clicker=mouse_clicker,
     )
 
-    # простой сценарий входа: спринт вперёд и F
-    class SimpleEnterToDungeon:
-        def __init__(self, keyboard: KeyboardController, run_time: float = 1.0):
-            self.keyboard = keyboard
-            self.run_time = run_time
-            self._done = False
-
-        def enter(self) -> bool:
-            if self._done:
-                return True
-            print("[SimpleEnter] shift sprint")
-            self.keyboard.hold_key("shift", duration=self.run_time)
-            time.sleep(0.3)
-            print("[SimpleEnter] press F")
-            self.keyboard.press_key(["f"])
-            self._done = True
-            return True
-
-    simple_enter = SimpleEnterToDungeon(keyboard=keyboard)
+    # --- сценарий входа в подземелье из модуля ---
+    # ВАЖНО: подгони аргументы под реальный __init__ в Model/SimpleEnterToDungeon.py
+    simple_enter = SimpleEnterToDungeon(
+        keyboard=keyboard,
+        events_checker=events_checker,
+        activate_dungeon=activate_dungeon,
+        frame_text=frame_text,
+        grab_frame=grab_frame,
+    )
 
     # --- модель подземелья ---
     dungeon_model = DungeonModel()
@@ -113,13 +102,16 @@ def build_model():
     def enemy_detector(frame):
         if frame is None:
             return []
+
         prediction_data = detector.detect(frame)
         bboxes = []
+
         for data in prediction_data.values():
             coords = data.get("coords")
             if coords and len(coords) == 4:
                 x1, y1, x2, y2 = coords
                 bboxes.append((int(x1), int(y1), int(x2), int(y2)))
+
         print("[YOLO] bboxes:", len(bboxes))
         return bboxes
 
@@ -140,7 +132,6 @@ def build_model():
         def basic_attack(self, times: int = 1):
             for _ in range(times):
                 self.mouse.click()
-
 
     skill_controller = SkillController(keyboard, mouse_clicker)
 
@@ -179,10 +170,11 @@ def build_model():
         "keyboard": keyboard,
     }
 
+
 def run_bot_loop(vm: GameViewModel, deps: dict):
     screen: ScreenCapture = deps["screen"]
     battle_strategy: BattleStrategy = deps["battle_strategy"]
-    simple_enter = deps["simple_enter"]
+    simple_enter: SimpleEnterToDungeon = deps["simple_enter"]
     keyboard: KeyboardController = deps["keyboard"]
 
     while True:
@@ -196,6 +188,7 @@ def run_bot_loop(vm: GameViewModel, deps: dict):
             enemies = battle_strategy.tick()
             if enemies:
                 keyboard.hold_key("shift", duration=0.3)
+
             vm.notify_all(
                 {
                     "state": state,
@@ -203,7 +196,6 @@ def run_bot_loop(vm: GameViewModel, deps: dict):
                     "enemies_detected": len(enemies),
                 }
             )
-
 
         elif state == "enter_to_dungeon":
             simple_enter.enter()
@@ -226,16 +218,20 @@ def run_bot_loop(vm: GameViewModel, deps: dict):
 
         time.sleep(0.05)
 
+
 def main():
     # активируем окно игры
     window_manager.ensure_game_active()
 
     deps = build_model()
-
     vm = GameViewModel()
     ui = BotInterface(view_model=vm)
 
-    bot_thread = threading.Thread(target=run_bot_loop, args=(vm, deps), daemon=True)
+    bot_thread = threading.Thread(
+        target=run_bot_loop,
+        args=(vm, deps),
+        daemon=True,
+    )
     bot_thread.start()
 
     ui.mainloop()
