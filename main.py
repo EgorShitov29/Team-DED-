@@ -19,8 +19,8 @@ from Model.EnemyAimer import EnemyAimer
 from Model.SimpleEnterToDungeon import SimpleEnterToDungeon
 from Model.EventsChecker import EventsChecker
 from Model.FrameTextCoordinator import FrameTextCoordinator
-from Model.gameplay_core import gameplay
-from Model.keyboard_and_mouse_controllers import MouseMover, MouseClicker, KeyboardController
+from Model.gameplay_and_keyboard_core.gameplay_core import gameplay
+from Model.gameplay_and_keyboard_core.keyboard_and_mouse_controllers import MouseMover, MouseClicker, KeyboardController
 from Model.LevelSelector import LevelSelector
 from Model.ScreenCapture import ScreenCapture
 from Model.StateMachine import GameplayStateMachine
