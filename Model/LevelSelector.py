@@ -1,8 +1,9 @@
 import cv2 as cv
 import pyautogui as pgui
+import re
 
-import state_check.src.search_text_frame as text_opp
-import gameplay_core as core
+import Model.state_check.src.search_text_frame as text_opp
+import Model.gameplay_core as core
 
 
 class LevelSelector:
@@ -36,8 +37,8 @@ class LevelSelector:
         num_coords = self._find_levels(text_and_coords)
         closest = self._find_closest(num_coords.keys(), self.target_squad_level)
         bbox = num_coords[closest]
-        centerx = (bbox[2] - bbox[0]) // 2
-        centery = (bbox[3] - bbox[1]) // 2
+        centerx = (bbox[0] + bbox[2]) // 2
+        centery = (bbox[1] + bbox[3]) // 2
         pgui.moveTo(x=centerx, y=centery)
         pgui.click()
         return True

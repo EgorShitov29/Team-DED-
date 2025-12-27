@@ -1,103 +1,73 @@
-import numpy as np
-from typing import Optional
+from typing import List, Tuple, Optional
+
+from Model.utils.enemy_position import bbox_centers
+
 
 class EnemyAimer:
     """
-    Класс, который вычисляет ближайшего врага и направление до него.
-    Возвращает команды либо в виде клавиш, которые нужно нажать для перемещения,
-    либо готовность к атаке. Необходимо поиграться с мертвой зоной, порогами
+    Выбор цели и выдача команды прицеливания/атаки.
+    Ожидает, что bboxes врагов приходят в формате (x1, y1, x2, y2).
     """
-    def __init__(self, screen_size: tuple[int, int], deadzone: int = 50):
-        self.screen_width, self.screen_height = screen_size
-        self.hero_center = np.array([
-            self.screen_width // 2,
-            int(self.screen_height * 0.6)
-        ], dtype=np.int32)
-        
-        self.deadzone = deadzone
-        
-    def extract_enemies_from_detection(self, detection_data: dict) -> np.ndarray:
-        """Получим координаты углов ббокса и классы. Переведем координаты с numpy array"""
-        coords = []
-        # На будущее
-        class_names = []
-        
-        for data in detection_data.values():
-            coords.append(data['coords'])
-            class_names.append(data['class_name'])
-        
-        if not coords:
-            return np.empty((0, 4), dtype=np.int32)
-            
-        bboxes = np.array(coords, dtype=np.int32)
-        bboxes[:, 2:] = np.maximum(bboxes[:, 2:], bboxes[:, :2] + 1)
-        
-        return bboxes
-    
-    def bboxes_to_centers(self, bboxes: np.ndarray) -> np.ndarray:
-        """Получаем центры каждого ббокса"""  
-        return (bboxes[:, :2] + bboxes[:, 2:]) // 2
-      
-    def get_nearest_enemy(self, bboxes: np.ndarray) -> tuple[Optional[np.ndarray], int]:
-        """Находит ближайший ббокс по отношению к герою через евклидово расстояние"""
-        if len(bboxes) == 0:
-            return None, np.iinfo(np.int32).max
-            
-        centers = self.bbox_centers(bboxes)
-        distances = np.linalg.norm(centers - self.hero_center, axis=1).astype(np.int32)
-        
-        nearest_idx = np.argmin(distances)
-        return bboxes[nearest_idx], int(distances[nearest_idx])
-    
-    def get_direction(self, bbox: np.ndarray) -> tuple[int, int]:
-        """Направление в пикселях от ббокса до героя"""
-        center = self.bbox_centers(bbox.reshape(1, -1))[0]
-        dx = center[0] - self.hero_center[0]
-        dy = center[1] - self.hero_center[1]
-        return int(dx), int(dy)
-    
-    def get_normalized_direction(self, dx: int, dy: int) -> tuple[float, float]:
-        """Нормализованный вектор направляения для упрощения условий по получению команд"""
-        distance = max(1, int(np.linalg.norm([dx, dy])))
 
-        if distance < self.deadzone:
-            return 0.0, 0.0
-            
-        return dx / distance, dy / distance
-    
-    def get_movement_command(self, dx: int, dy: int) -> Optional[str]:
-        """Получает команды в зависимости от значенией направления"""
-        dx_norm, dy_norm = self.get_normalized_direction(dx, dy)
-        
-        if abs(dx_norm) < 0.15 and abs(dy_norm) < 0.15:
+    def __init__(self, screen_size: Tuple[int, int], mover, attacker, max_angle: float = 40.0) -> None:
+        self.screen_w, self.screen_h = screen_size
+        self.mover = mover      # объект, который двигает камеру/курсор
+        self.attacker = attacker  # объект, который жмёт кнопку атаки
+        self.max_angle = max_angle
+
+    def _screen_center(self) -> Tuple[int, int]:
+        return self.screen_w // 2, self.screen_h // 2
+
+    def select_target(self, enemy_bboxes: List[Tuple[int, int, int, int]]) -> Optional[Tuple[int, int, int, int]]:
+        """
+        Выбирает ближайшего к центру экрана врага.
+        """
+        if not enemy_bboxes:
             return None
 
-        if abs(dx_norm) > 0.3 and abs(dy_norm) > 0.3:
-            if dx_norm > 0 and dy_norm < 0: return 'wd'
-            if dx_norm < 0 and dy_norm < 0: return 'wa'
-            if dx_norm > 0 and dy_norm > 0: return 'sd'
-            if dx_norm < 0 and dy_norm > 0: return 'sa'
+        cx, cy = self._screen_center()
+        centers = bbox_centers(enemy_bboxes)
 
-        if abs(dx_norm) > abs(dy_norm):
-            return 'd' if dx_norm > 0 else 'a'
-        else:
-            return 'w' if dy_norm < 0 else 's'
-    
-    def is_attackable(self, bbox: np.ndarray) -> bool:
-        """Враг в зоне атаки: расстояние < 150px. Опционально - отследить увеличение ббокса"""
-        nearest_bbox, distance = self.get_nearest_enemy(bbox.reshape(1, -1))
-        return self.get_movement_command(dx, dy)
+        def dist2(c):
+            dx = c[0] - cx
+            dy = c[1] - cy
+            return dx * dx + dy * dy
 
-    
-    def get_aim_command(self, detection_data: dict) -> Optional[str]:
-        bboxes = self.extract_enemies_from_detection(detection_data)
-        if len(bboxes) == 0:
-            return None
-        
-        nearest_bbox, distance = self.get_nearest_enemy(bboxes)
-        
-        if self.is_attackable(nearest_bbox):
-            return 'attack'
-        
-        dx, dy = self.get_direction(nearest_bbox)
-        return self.get_movement_command(dx, dy)
+        best_idx = min(range(len(centers)), key=lambda i: dist2(centers[i]))
+        return enemy_bboxes[best_idx]
+
+    def is_attackable(self, bbox: Tuple[int, int, int, int]) -> bool:
+        """
+        Проверяет, не слишком ли далеко цель от центра экрана.
+        Тут можно использовать простую метрику по пикселям.
+        """
+        if bbox is None:
+            return False
+
+        cx, cy = self._screen_center()
+        tx, ty = (bbox[0] + bbox[2]) // 2, (bbox[1] + bbox[3]) // 2
+        dx = tx - cx
+        dy = ty - cy
+        dist = (dx * dx + dy * dy) ** 0.5
+
+        # простая эвристика: если цель близко к центру — можно бить
+        max_pixels = min(self.screen_w, self.screen_h) * 0.25
+        return dist <= max_pixels
+
+    def aim_and_attack(self, target_bbox: Optional[Tuple[int, int, int, int]]) -> None:
+        """
+        Нацелиться на врага и атаковать, если он в пределах разумной дистанции.
+        """
+        if target_bbox is None:
+            return
+
+        cx, cy = self._screen_center()
+        tx, ty = (target_bbox[0] + target_bbox[2]) // 2, (target_bbox[1] + target_bbox[3]) // 2
+        dx = tx - cx
+        dy = ty - cy
+
+        # двигаем камеру/курсор так, чтобы центр нацелился на врага
+        self.mover.move_view(dx, dy)
+
+        if self.is_attackable(target_bbox):
+            self.attacker.attack()

@@ -1,74 +1,95 @@
-import threading
-from queue import Queue
 from concurrent.futures import ThreadPoolExecutor
+from typing import Optional, List, Tuple
+
 import time
-import numpy as np
-from typing import Optional
-
-from detection.Detector import Detector
-from Aimer import Aimer
-import gameplay_core as core
-from ScreenCapture import ScreenCapture
-from CharacterStateChecker import need_to_heal, can_e_attack
 
 
-class MoveToTree:
+class CollectItemsStrategy:
+    """
+    Стратегия сбора предметов после боя.
+    Предполагается, что снаружи передаётся:
+    - grab_frame: callable -> np.ndarray (скрин)
+    - detect_items: callable(frame) -> List[bbox]
+    - mover: объект с методами move_to(x, y) и interact()
+    """
 
-    def __init__(self, detector: Detector, aimer: Aimer):
-        self.detector = detector
-        self.aimer = aimer
-        self.frame_getter = ScreenCapture()
-        self.frame_queue = Queue(maxsize=2)
-        self.detection_queue = Queue(maxsize=2)
-        self._is_running = False
+    def __init__(
+        self,
+        grab_frame,
+        detect_items,
+        mover,
+        screen_size: Tuple[int, int],
+        max_workers: int = 2,
+        collect_timeout: float = 15.0,
+    ) -> None:
+        self.grab_frame = grab_frame
+        self.detect_items = detect_items
+        self.mover = mover
+        self.screen_w, self.screen_h = screen_size
+        self.pool_executor = ThreadPoolExecutor(max_workers=max_workers)
+        self.collect_timeout = collect_timeout
 
-    def start(self):
-        self._is_running = True
-        self.frame_getter.start()
-        detection_thread = threading.Thread(target=self._detection_loop, daemon=True)
-        detection_thread.start()
-
-    def stop(self):
-        self._is_running = False
-        self.pool_executor.shutdown(wait=True)
-
-    def _detection_loop(self):
-        while self._is_running:
-            frame_data = self.frame_getter.get_frame_data()
-            if frame_data and frame_data['frame'] is not None:
-                future = self.pool_executor.submit(self.detector.detect, frame_data['frame'])
-                detection_data = future.result(timeout=0.1)
-                sefl.detection_queue.put(detection_data, timeout=0.01)
-
-    def _execute_game_command(self, command: Optional[str]):
+    def _center_of_bbox(self, bbox) -> Tuple[int, int]:
         """
-        Возможно, будет лучше сделать словарь с командами, но, как мне кажется - это лишнее. Пока так
+        bbox: (x1, y1, x2, y2) либо dict с такими полями.
         """
-        if command == 'activate':
-            core.click_event()
-        elif len(command) == 2:
-            core.hold_hotkey(command)
-        elif len(command) == 1:
-            core.hold_key(command)
+        if isinstance(bbox, dict):
+            x1, y1, x2, y2 = bbox["x1"], bbox["y1"], bbox["x2"], bbox["y2"]
+        else:
+            x1, y1, x2, y2 = bbox
+        cx = int((x1 + x2) / 2)
+        cy = int((y1 + y2) / 2)
+        return cx, cy
 
-    def process_frame(self):
-        try:
-            frame_data = self.frame_getter.get_frame_data()
-            if not frame_data:
-                return False
-            detection_data = self.detection_queue.get_nowait()
-        except:
-            frame_data = self.frame_getter.get_frame_data()
-            if not frame_data:
-                return False
-        command = self.aimer.get_aim_command(detection_data)
-        self._execute_game_command(command)
+    def _pick_closest(self, bboxes: List) -> Optional:
+        if not bboxes:
+            return None
+        cx_screen = self.screen_w // 2
+        cy_screen = self.screen_h // 2
+
+        def dist2(b):
+            x, y = self._center_of_bbox(b)
+            dx = x - cx_screen
+            dy = y - cy_screen
+            return dx * dx + dy * dy
+
+        return min(bboxes, key=dist2)
+
+    def run_once(self) -> bool:
+        """
+        Один шаг: получить кадр, найти предметы, подойти к ближайшему и поднять.
+        Возвращает True, если что-то попытались собрать.
+        """
+        frame = self.grab_frame()
+        bboxes = self.detect_items(frame)
+        if not bboxes:
+            return False
+
+        target = self._pick_closest(bboxes)
+        if target is None:
+            return False
+
+        tx, ty = self._center_of_bbox(target)
+
+        # Двигаемся к цели и жмём interact
+        self.mover.move_to(tx, ty)
+        time.sleep(0.3)
+        self.mover.interact()
         return True
 
-
-class CollectItems:
-    """
-    Попробуйте применить поиск шаблонов
-    и FrameTextCoordinator, чтобы определить,
-    сколько осталось смолы
-    """
+    def run_loop(self) -> None:
+        """
+        Цикл сбора до истечения таймера или пока предметы не закончились несколько итераций подряд.
+        """
+        start = time.time()
+        empty_iterations = 0
+        while time.time() - start < self.collect_timeout:
+            collected = self.run_once()
+            if not collected:
+                empty_iterations += 1
+                if empty_iterations >= 3:
+                    break
+                time.sleep(0.5)
+            else:
+                empty_iterations = 0
+                time.sleep(0.2)

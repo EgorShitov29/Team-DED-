@@ -1,29 +1,49 @@
-import pyautogui as pgui
+import time
+import re
+from typing import Optional, Tuple
 
-import .state_check.src.search_text_frame as text_opp
+from Model.FrameTextCoordinator import FrameTextCoordinator
 
 
-class ConfirmSquadLevel:
+class ConfirmSquadBuild:
     """
-    Расширяемый класс. Но пока только два метода
+    Ожидание окна отряда и подтверждение состава.
     """
 
-    def _find_squad_level(self, text: str) -> bool:
-    """
-    При помощи OCR ищем кнопку Начать
-    """
-    pattern = r'Начать'
-    match = re.search(pattern, text)
-    return match
+    def __init__(self, grab_frame, frame_text: FrameTextCoordinator, clicker, timeout: float = 10.0) -> None:
+        self.grab_frame = grab_frame
+        self.frame_text = frame_text
+        self.clicker = clicker
+        self.timeout = timeout
 
-    def start_with_confirmed_squad(self, text_and_coords: dict):
-        for text in text_and_coords.keys():
-            match = self._find_squad_level(text)
-            if match:
-                bbox = text_and_coords[text]
-                centerx = (bbox[2] - bbox[0]) // 2
-                centery = (bbox[3] - bbox[1]) // 2
-                pgui.moveTo(x=centerx, y=centery)
-                pgui.click()
-                break
-        return match
+    def _find_confirm_button(self, frame) -> Optional[Tuple[int, int, int, int]]:
+        """
+        Ищет кнопку подтверждения (например, по тексту "Начать", "Готово", "Подтвердить").
+        """
+        for pattern in ["Начать", "Готово", "Подтвердить", "Start"]:
+            res = self.frame_text.get_text_and_coords(frame, pattern)
+            if res is not None:
+                _, bbox = res
+                return bbox
+        return None
+
+    def wait_and_confirm(self) -> bool:
+        """
+        Ждёт появления экрана отряда и жмёт кнопку подтверждения.
+        Возвращает True при успехе.
+        """
+        start = time.time()
+        while time.time() - start < self.timeout:
+            frame = self.grab_frame()
+            bbox = self._find_confirm_button(frame)
+            if bbox is None:
+                time.sleep(0.3)
+                continue
+
+            x1, y1, x2, y2 = bbox
+            cx = (x1 + x2) // 2
+            cy = (y1 + y2) // 2
+            self.clicker.click(cx, cy)
+            return True
+
+        return False

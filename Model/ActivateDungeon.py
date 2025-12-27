@@ -1,22 +1,51 @@
+from typing import Optional, Tuple
+
 import cv2 as cv
-import pyautogui as pgui
+import numpy as np
 
-import gameplay_core as core
-from keyboard_and_mouse_controllers import KeyboardController
-import state_check.src.event_listeners.check_clicable_event_button as check_button 
+from Model.FrameTextCoordinator import FrameTextCoordinator
 
-def get_frame():
-    frame = pyautogui.screenshot()
-    frame = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
-    return frame
 
-def activate_dungeon(event_type='activate'):
-    flag_activate = False
-    
-    while not(flag_activate):
-        KeyboardController.hold_key('w')
-        frame = get_frame()
-        flag_activate = check_button(frame, event_type)
-    
-    return flag_activate
+class ActivateDungeon:
+    """
+    Открытие окна старта подземелья и нажатие кнопки "Начать".
+    """
 
+    def __init__(self, grab_frame, frame_text: FrameTextCoordinator, clicker) -> None:
+        self.grab_frame = grab_frame
+        self.frame_text = frame_text
+        self.clicker = clicker  # объект с методом click(x, y)
+
+    def _find_start_button(self, frame) -> Optional[Tuple[int, int, int, int]]:
+        """
+        Использует OCR через FrameTextCoordinator, чтобы найти кнопку "Начать".
+        При необходимости текст/язык можно вынести в конфиг.
+        """
+        res = self.frame_text.get_text_and_coords(frame, "Начать")
+        if res is None:
+            # можно добавить fallback: искать по английскому "Start"
+            res = self.frame_text.get_text_and_coords(frame, "Start")
+        if res is None:
+            return None
+        _, bbox = res
+        return bbox
+
+    def open_start_menu(self) -> None:
+        """
+        При необходимости можно добавить логику открытия меню старта,
+        если оно не появляется автоматически.
+        """
+        # пока заглушка, оставлена для совместимости с Orchestrator
+        pass
+
+    def press_start_if_visible(self) -> bool:
+        frame = self.grab_frame()
+        bbox = self._find_start_button(frame)
+        if bbox is None:
+            return False
+
+        x1, y1, x2, y2 = bbox
+        cx = (x1 + x2) // 2
+        cy = (y1 + y2) // 2
+        self.clicker.click(cx, cy)
+        return True
